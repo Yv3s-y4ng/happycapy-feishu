@@ -1,6 +1,6 @@
 ---
 name: happycapy-feishu
-description: 为 Claude Code 安装并授权飞书 MCP，让 Claude 直接操作飞书消息、文档、多维表格、日历等。触发词：安装飞书 MCP、配置飞书、接入飞书、飞书 MCP setup、connect feishu
+description: 为 Claude Code 安装并授权飞书 MCP，让 Claude 直接操作飞书消息、文档、多维表格、日历等。触发词：安装飞书 MCP、配置飞书、接入飞书、飞书 MCP setup、connect feishu、飞书重新授权、飞书 token 过期、reauthorize feishu
 ---
 
 # 飞书 MCP 安装向导
@@ -108,13 +108,29 @@ echo "$FEISHU_URL"
 
 ### 3.2 把飞书授权链接发给用户
 
-把上一步输出的 `https://open.feishu.cn/...` 链接（仅此链接）发给用户，并告知：
+> ⚠️ **严禁把任何 `localhost:3000/authorize`、`localhost:3000` 预览地址、或 capy 域名链接发给用户。只发 `open.feishu.cn` 链接。**
 
-> **第一步：** 在浏览器打开上面的链接，用飞书账号登录并点击授权。
->
-> **第二步：** 授权完成后，浏览器会跳转到一个以 `http://localhost:3000/callback?code=...` 开头的地址，并显示"无法访问此网站"——**这是正常的，不要关闭页面。**
->
-> **第三步：** 忽略错误提示，直接复制浏览器地址栏的完整 URL（以 `http://localhost:3000/callback` 开头），粘贴发给我。
+把上一步提取出的 `$FEISHU_URL`（`https://open.feishu.cn/...` 开头）发给用户，使用以下**标准话术**（原文发送，替换链接占位符）：
+
+---
+
+好了，这就是飞书 OAuth 直链。按以下步骤操作：
+
+**第一步：** 用浏览器打开这个链接进行飞书授权
+
+`<$FEISHU_URL>`
+
+**第二步：** 用飞书账号登录授权后，浏览器会跳转到 `http://localhost:3000/...` 显示无法访问。此时复制浏览器地址栏的完整 URL 发给我（格式类似）：
+
+```
+http://localhost:3000/callback?code=xxxxxx&state=reauthorize
+```
+
+**第三步：** 我用这个 URL 完成 token 交换并保存。
+
+> 注意：这个授权链接有 **5 分钟**有效期，请快速操作。若超时告诉我，我重新生成。
+
+---
 
 ### 3.3 收到 callback URL 后提交
 
