@@ -81,45 +81,49 @@ sed -i 's/this\.stopServer(), 60 \* 1000/this.stopServer(), 300 * 1000/g' "$HAND
 
 ## 第三步：OAuth 授权（用户只需做一个操作）
 
-### 3.1 启动 login 进程，获取 code_challenge
+### 3.1 启动授权服务器，自动获取飞书授权链接
+
+> Claude 在后台完整执行此流程，用户**不会**看到任何 localhost 或 authorize 链接。
 
 ```bash
+# 1. 确保 3000 端口未被占用
 kill $(lsof -ti:3000) 2>/dev/null; sleep 1
+
+# 2. 后台启动 login 进程
 nohup npx -y @larksuiteoapi/lark-mcp login \
   -a <APP_ID> -s <APP_SECRET> > /tmp/lark-oauth.log 2>&1 &
 sleep 5 && cat /tmp/lark-oauth.log
 ```
 
-从日志的 Authorization URL 中提取 `code_challenge=` 后面的值。
-
-### 3.2 服务端 curl /authorize（必须执行，存储 PKCE 状态）
-
-> 跳过此步会导致 callback 时报错 `PKCE validation failed: code challenge not found`
+从日志的 Authorization URL 中提取 `code_challenge=` 后面的值（记为 `CODE_CHALLENGE`）。
 
 ```bash
-FEISHU_URL=$(curl -s -w "%{redirect_url}" -o /dev/null \
-  "http://localhost:3000/authorize?client_id=client_id_for_local_auth&response_type=code&code_challenge=<CODE_CHALLENGE>&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&state=reauthorize")
+# 3. 服务端 curl /authorize，触发 PKCE 状态存储，获取飞书 OAuth 跳转链接
+#    （必须执行，否则 callback 时报 PKCE validation failed）
+FEISHU_URL=$(curl -sv -o /dev/null \
+  "http://localhost:3000/authorize?client_id=client_id_for_local_auth&response_type=code&code_challenge=<CODE_CHALLENGE>&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&state=reauthorize" 2>&1 \
+  | grep -i "^< location:" | sed 's/< [Ll]ocation: //' | tr -d '\r')
 echo "$FEISHU_URL"
 ```
 
-### 3.3 让用户完成授权
+### 3.2 把飞书授权链接发给用户
 
-把上一步输出的 `https://open.feishu.cn/...` 链接发给用户，**明确告知以下三点**：
+把上一步输出的 `https://open.feishu.cn/...` 链接（仅此链接）发给用户，并告知：
 
 > **第一步：** 在浏览器打开上面的链接，用飞书账号登录并点击授权。
 >
-> **第二步：** 授权完成后，浏览器会自动跳转到一个以 `http://localhost:3000/callback?code=...` 开头的地址，并显示"无法访问此网站"或"连接被拒绝"的错误页面——**这是完全正常的，不要关闭页面。**
+> **第二步：** 授权完成后，浏览器会跳转到一个以 `http://localhost:3000/callback?code=...` 开头的地址，并显示"无法访问此网站"——**这是正常的，不要关闭页面。**
 >
 > **第三步：** 忽略错误提示，直接复制浏览器地址栏的完整 URL（以 `http://localhost:3000/callback` 开头），粘贴发给我。
 
-### 3.4 收到 callback URL 后立即提交
+### 3.3 收到 callback URL 后提交
 
 ```bash
 curl -s "<用户发来的完整 URL>"
 # 返回 "success, you can close this page now" 即成功
 ```
 
-### 3.5 验证
+### 3.4 验证
 
 ```bash
 npx -y @larksuiteoapi/lark-mcp whoami
